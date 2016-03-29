@@ -14,7 +14,9 @@ import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.converters.CommaParameterSplitter;
 import com.beust.jcommander.converters.FileConverter;
 
+import de.dwslab.dwslib.collections.MapUtils;
 import de.dwslab.dwslib.framework.Processor;
+import de.dwslab.dwslib.models.SortingOrderTypes;
 import de.dwslab.dwslib.util.io.InputUtil;
 import de.dwslab.dwslib.util.io.OutputUtil;
 import de.dwslab.dwslib.util.uri.DomainUtil;
@@ -62,8 +64,12 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 	private String filePrefix = "";
 
 	@Parameter(names = { "-tp",
-			"-typeProperties" }, required = true, description = "Properties which are used to identify a type (comma separated)", splitter = CommaParameterSplitter.class)
+			"-typeProperties" }, required = true, description = "Properties which are used to identify a type (comma separated).", splitter = CommaParameterSplitter.class)
 	private List<String> typeProperties = new ArrayList<String>();
+
+	@Parameter(names = { "-e",
+			"-typeAsRegex" }, required = false, description = "Indicates if the type properties should be handled as regex.")
+	private boolean useRegex = false;
 
 	@Override
 	protected List<File> fillListToProcess() {
@@ -95,8 +101,13 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 
 		@Override
 		public int compareTo(StatHolder o) {
-			return o.domains.size() - this.domains.size();
+			return  this.domains.size() - o.domains.size();
 		}
+	}
+
+	@Override
+	protected int getNumberOfThreads() {
+		return this.threads;
 	}
 
 	private HashMap<String, StatHolder> vocabStatsMap = new HashMap<>();
@@ -140,7 +151,8 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 				}
 			} catch (Exception e) {
 				errorCount++;
-				e.printStackTrace();
+				// TODO make this an option
+				// e.printStackTrace();
 			}
 		}
 		// process once more for the last quads
@@ -177,7 +189,8 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 		for (Quad q : quads) {
 			// check if its a type quad
 			String vocab;
-			if (typeProperties.contains(q.predicate())) {
+			// if (typeProperties.contains(q.predicate())) {
+			if (isType(q.predicate())) {
 				// add class entities
 				HashSet<String> entities = classEntityMap.get(q.value().value());
 				if (entities == null) {
@@ -237,6 +250,28 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			stats.domains.add(domain);
 			propStatsMap.put(prop, stats);
 		}
+	}
+
+	/**
+	 * Checks if the predicate is a type predicate
+	 * 
+	 * @param predicate
+	 *            the predicate
+	 * @return true if its a type predicate, false if not.
+	 */
+	private boolean isType(String predicate) {
+		if (useRegex) {
+			for (String pattern : typeProperties) {
+				if (predicate.matches(pattern)) {
+					return true;
+				}
+			}
+		} else {
+			if (typeProperties.contains(predicate)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// sync error count with global error count
@@ -302,6 +337,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			BufferedWriter vocabWriter = OutputUtil.getGZIPBufferedWriter(new File(outputDirectory,
 					(filePrefix.length() > 0 ? (filePrefix + ".") : ("")) + "vocab.stats.gz"));
 			vocabWriter.write("vocab\tnumEntities\tnumUrls\tnumDomains\n");
+			vocabStatsMap = (HashMap<String, StatHolder>) MapUtils.sortByValue(vocabStatsMap, SortingOrderTypes.DESCENDING);
 			for (String vocab : vocabStatsMap.keySet()) {
 				vocabWriter.write(vocab + "\t" + vocabStatsMap.get(vocab).numEntities + "\t"
 						+ vocabStatsMap.get(vocab).numUrls + "\t" + vocabStatsMap.get(vocab).domains.size() + "\n");
@@ -313,6 +349,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 					(filePrefix.length() > 0 ? (filePrefix + ".") : ("")) + "class.stats.gz"));
 			long numTypedEntities = 0;
 			classWriter.write("class\tnumEntities\tnumUrls\tnumDomains\n");
+			classStatsMap = (HashMap<String, StatHolder>) MapUtils.sortByValue(classStatsMap, SortingOrderTypes.DESCENDING);
 			for (String c : classStatsMap.keySet()) {
 				classWriter.write(c + "\t" + classStatsMap.get(c).numEntities + "\t" + classStatsMap.get(c).numUrls
 						+ "\t" + classStatsMap.get(c).domains.size() + "\n");
@@ -324,6 +361,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			BufferedWriter propWriter = OutputUtil.getGZIPBufferedWriter(
 					new File(outputDirectory, (filePrefix.length() > 0 ? (filePrefix + ".") : ("")) + "prop.stats.gz"));
 			propWriter.write("prop\tnumEntities\tnumUrls\tnumDomains\n");
+			propStatsMap = (HashMap<String, StatHolder>) MapUtils.sortByValue(propStatsMap, SortingOrderTypes.DESCENDING);
 			for (String c : propStatsMap.keySet()) {
 				propWriter.write(c + "\t" + propStatsMap.get(c).numEntities + "\t" + propStatsMap.get(c).numUrls + "\t"
 						+ propStatsMap.get(c).domains.size() + "\n");
@@ -345,7 +383,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			System.out.println("Parsed " + parsedLines + " lines.");
 			System.out.println("Could not parse " + errorCount + " lines (quads).");
 			System.out.println("Overall found: " + numTypedEntities + " typed entities in the data.");
-			
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
