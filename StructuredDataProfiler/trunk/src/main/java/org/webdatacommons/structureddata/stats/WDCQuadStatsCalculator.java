@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
+import org.webdatacommons.structureddata.util.DomainUtil;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
@@ -19,7 +21,6 @@ import de.dwslab.dwslib.framework.Processor;
 import de.dwslab.dwslib.models.SortingOrderTypes;
 import de.dwslab.dwslib.util.io.InputUtil;
 import de.dwslab.dwslib.util.io.OutputUtil;
-import de.dwslab.dwslib.util.uri.DomainUtil;
 import de.wbsg.loddesc.util.VocabularyUtils;
 import ldif.local.datasources.dump.QuadFileLoader;
 import ldif.runtime.Quad;
