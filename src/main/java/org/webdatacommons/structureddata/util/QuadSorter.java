@@ -71,6 +71,11 @@ public class QuadSorter extends Processor<File> {
 	}
 
 	@Override
+	protected int getNumberOfThreads() {
+		return threads;
+	}
+
+	@Override
 	protected void process(File object) throws Exception {
 		BufferedWriter bw = OutputUtil.getGZIPBufferedWriter(new File(this.outputDirectory, object.getName()));
 		QuadFileLoader qfl = new QuadFileLoader();
