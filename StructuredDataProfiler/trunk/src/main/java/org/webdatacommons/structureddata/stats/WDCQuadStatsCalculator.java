@@ -13,6 +13,7 @@ import org.webdatacommons.structureddata.util.DomainUtil;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
+import com.beust.jcommander.Parameters;
 import com.beust.jcommander.converters.CommaParameterSplitter;
 import com.beust.jcommander.converters.FileConverter;
 
@@ -47,6 +48,7 @@ import ldif.runtime.Quad;
  * @author Robert Meusel (robert@dwslab.de)
  *
  */
+@Parameters(commandDescription = "Calculates the statistics from quad files of the WDC extraction.")
 public class WDCQuadStatsCalculator extends Processor<File> {
 
 	@Parameter(names = { "-out",
