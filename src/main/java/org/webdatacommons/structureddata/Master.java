@@ -3,6 +3,7 @@ package org.webdatacommons.structureddata;
 import org.webdatacommons.structureddata.stats.CCUrlStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCQuadStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCUrlStatsCalculator;
+import org.webdatacommons.structureddata.util.QuadSorter;
 
 import com.beust.jcommander.JCommander;
 
@@ -23,6 +24,9 @@ public class Master {
 		WDCQuadStatsCalculator wdcquads = new WDCQuadStatsCalculator();
 		jc.addCommand("wdcquadstats", wdcquads);
 
+		QuadSorter sort = new QuadSorter();
+		jc.addCommand("sortquads", sort);
+
 		try {
 			jc.parse(args);
 			switch (jc.getParsedCommand()) {
@@ -35,15 +39,16 @@ public class Master {
 			case "wdcquadstats":
 				wdcquads.process();
 				break;
+			case "sortquads":
+				sort.process();
+				break;
 			}
 		} catch (Exception pex) {
-			pex.printStackTrace();
 			if (jc.getParsedCommand() == null) {
 				jc.usage();
-
 			} else {
 				switch (jc.getParsedCommand()) {
-				case "urlstats":
+				case "ccurlstats":
 					new JCommander(ccurls).usage();
 					break;
 				case "wdcurlstats":
@@ -51,6 +56,9 @@ public class Master {
 					break;
 				case "wdcquadstats":
 					new JCommander(wdcquads).usage();
+					break;
+				case "sortquads":
+					new JCommander(sort).usage();
 					break;
 				default:
 					jc.usage();
