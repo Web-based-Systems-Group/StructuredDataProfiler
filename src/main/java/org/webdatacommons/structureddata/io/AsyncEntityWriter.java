@@ -12,6 +12,14 @@ import org.webdatacommons.structureddata.model.Entity;
 
 import de.dwslab.dwslib.util.io.OutputUtil;
 
+/**
+ * Based on Stackoverflow:
+ * (http://stackoverflow.com/questions/6206472/what-is-the-best-way-to-write-to-
+ * a-file-in-a-parallel-thread-in-java)
+ * 
+ * @author Robert Meusel (robert@dwslab.de)
+ *
+ */
 public class AsyncEntityWriter implements EntityWriter, Runnable {
 
 	// private final File file;
