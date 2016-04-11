@@ -4,6 +4,7 @@ import org.webdatacommons.structureddata.stats.CCUrlStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCQuadStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCUrlStatsCalculator;
 import org.webdatacommons.structureddata.util.QuadSorter;
+import org.webdatacommons.structureddata.util.SubsetCreator;
 
 import com.beust.jcommander.JCommander;
 
@@ -27,6 +28,9 @@ public class Master {
 		QuadSorter sort = new QuadSorter();
 		jc.addCommand("sortquads", sort);
 
+		SubsetCreator subset = new SubsetCreator();
+		jc.addCommand("subset", subset);
+
 		try {
 			jc.parse(args);
 			switch (jc.getParsedCommand()) {
@@ -41,6 +45,9 @@ public class Master {
 				break;
 			case "sortquads":
 				sort.process();
+				break;
+			case "subset":
+				subset.process();
 				break;
 			}
 		} catch (Exception pex) {
@@ -59,6 +66,9 @@ public class Master {
 					break;
 				case "sortquads":
 					new JCommander(sort).usage();
+					break;
+				case "subset":
+					new JCommander(subset).usage();
 					break;
 				default:
 					jc.usage();
