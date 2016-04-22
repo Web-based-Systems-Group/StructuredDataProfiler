@@ -86,7 +86,7 @@ public class WDCUrlStatsCalculator extends Processor<File> {
 			HashMap<String, HashMap<String, Integer>> formatDomainUrlWTripleMap) {
 		for (String format : formatDomainUrlWTripleMap.keySet()) {
 			if (!this.formatDomainUrlWTripleMap.containsKey(format)) {
-				this.formatDomainUrlWTripleMap.put(format, new HashMap<>());
+				this.formatDomainUrlWTripleMap.put(format, new HashMap<String, Integer>());
 			}
 			for (String domain : formatDomainUrlWTripleMap.get(format).keySet()) {
 				Integer count = this.formatDomainUrlWTripleMap.get(format).get(domain);
@@ -102,7 +102,7 @@ public class WDCUrlStatsCalculator extends Processor<File> {
 	private synchronized void integrateTripleResults(HashMap<String, HashMap<String, Integer>> formatDomainTripleMap) {
 		for (String format : formatDomainTripleMap.keySet()) {
 			if (!this.formatDomainTripleMap.containsKey(format)) {
-				this.formatDomainTripleMap.put(format, new HashMap<>());
+				this.formatDomainTripleMap.put(format, new HashMap<String, Integer>());
 			}
 			for (String domain : formatDomainTripleMap.get(format).keySet()) {
 				Integer count = this.formatDomainTripleMap.get(format).get(domain);

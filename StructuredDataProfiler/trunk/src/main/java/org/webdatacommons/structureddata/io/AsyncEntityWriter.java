@@ -1,16 +1,18 @@
 package org.webdatacommons.structureddata.io;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.Collection;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 
 import org.webdatacommons.structureddata.model.Entity;
-
-import de.dwslab.dwslib.util.io.OutputUtil;
 
 /**
  * Based on Stackoverflow:
@@ -30,7 +32,10 @@ public class AsyncEntityWriter implements EntityWriter, Runnable {
 
 	public AsyncEntityWriter(File file) throws IOException {
 		// this.file = file;
-		this.out = OutputUtil.getGZIPBufferedWriter(file);
+//		this.out = OutputUtil.getGZIPBufferedWriter(file);
+		int buffer = 1024 * 8 * 1024;
+		this.out = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(
+				new FileOutputStream(file)), "UTF-8"), buffer); 
 	}
 
 	public EntityWriter append(Entity e) {
@@ -69,7 +74,7 @@ public class AsyncEntityWriter implements EntityWriter, Runnable {
 				Entity e = queue.poll(100, TimeUnit.MICROSECONDS);
 				if (e != null) {
 					try {
-						out.append(e.toLines());
+						out.write(e.toLines());
 					} catch (IOException logme) {
 					}
 				}
@@ -84,10 +89,6 @@ public class AsyncEntityWriter implements EntityWriter, Runnable {
 
 	public void close() {
 		this.stopped = true;
-	}
-
-	private static interface Item {
-		void write(Writer out) throws IOException;
 	}
 
 }
