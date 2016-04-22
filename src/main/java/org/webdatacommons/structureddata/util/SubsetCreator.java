@@ -1,17 +1,21 @@
 package org.webdatacommons.structureddata.util;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 
-import org.webdatacommons.structureddata.io.AsyncEntityWriter;
 import org.webdatacommons.structureddata.model.Entity;
 import org.webdatacommons.structureddata.model.EntityFileLoader;
 
@@ -62,10 +66,18 @@ public class SubsetCreator extends Processor<File> {
 			"classFilterFile" }, required = true, description = "File containing the class names, class prefixes and number of entities per file.")
 	private String classFilterFile = null;
 
-	@Parameter(names = "sep", required = false, description = "Separator for class filter file. (Default \t)")
+	@Parameter(names = "-sep", required = false, description = "Separator for class filter file. (Default \t)")
 	private String sep = "\t";
 
-	private Map<String, AsyncEntityWriter> writer = new HashMap<String, AsyncEntityWriter>();
+	@Parameter(names = "-global", required = false, description = "Defines if one global writer per class is used, or mutiple per class per input file per thread. (Defaul: false)")
+	private boolean globalWriter = false;
+
+	// NOTE you run into problems, if you cannot write fast enough
+	// private Map<String, AsyncEntityWriter> writer = new HashMap<String,
+	// AsyncEntityWriter>();
+	private Map<String, BufferedWriter> writer = new HashMap<String, BufferedWriter>();
+
+	private Map<String, String> names = new HashMap<String, String>();
 
 	@Override
 	protected int getNumberOfThreads() {
@@ -79,9 +91,20 @@ public class SubsetCreator extends Processor<File> {
 			while (br.ready()) {
 				String line = br.readLine();
 				String tok[] = line.split(sep);
-				AsyncEntityWriter aWriter = new AsyncEntityWriter(new File(this.outputDirectory, tok[1] + ".gz"));
-				aWriter.open();
-				writer.put(tok[0], aWriter);
+				// AsyncEntityWriter aWriter = new AsyncEntityWriter(new
+				// File(this.outputDirectory, tok[1] + ".gz"));
+				// aWriter.open();
+				// writer.put(tok[0], aWriter);
+				int buffer = 1024 * 8 * 1024;
+				if (globalWriter) {
+					writer.put(tok[0],
+							new BufferedWriter(new OutputStreamWriter(
+									new GZIPOutputStream(
+											new FileOutputStream(new File(this.outputDirectory, tok[1] + ".gz"))),
+									"UTF-8"), buffer));
+				} else {
+					names.put(tok[0], tok[1]);
+				}
 			}
 			br.close();
 		} catch (Exception e) {
@@ -110,7 +133,20 @@ public class SubsetCreator extends Processor<File> {
 
 	@Override
 	protected void process(File object) throws Exception {
-
+		Map<String, BufferedWriter> writerLocal = null;
+		
+		
+		if (!globalWriter) {
+			writerLocal = new HashMap<String, BufferedWriter>();
+			// init thread based writers
+			for (String s : this.names.keySet()) {
+				writerLocal.put(s,
+						new BufferedWriter(new OutputStreamWriter(
+								new GZIPOutputStream(new FileOutputStream(new File(this.outputDirectory,
+										this.names.get(s) + "_" + object.getName().replace(".gz", "") + ".gz"))),
+								"UTF-8")));
+			}
+		}
 		QuadFileLoader qfl = new QuadFileLoader();
 		EntityFileLoader etl = new EntityFileLoader();
 		BufferedReader br = InputUtil.getBufferedReader(object);
@@ -118,8 +154,9 @@ public class SubsetCreator extends Processor<File> {
 		NodeTrait currentSubject = null;
 		List<Entity> entities = new ArrayList<Entity>();
 		List<Quad> quads = new ArrayList<Quad>();
-		while (br.ready()) {
-			Quad q = qfl.parseQuadLine(br.readLine());
+		String line = "";
+		while ((line = br.readLine()) != null) {
+			Quad q = qfl.parseQuadLine(line);
 			if (q.graph().equals(currentURL)) {
 				if (q.subject().equals(currentSubject)) {
 					quads.add(q);
@@ -146,7 +183,11 @@ public class SubsetCreator extends Processor<File> {
 
 				// create entity
 				if (entities.size() > 0) {
-					processEntities(entities);
+					if (!globalWriter) {
+						processEntities(entities, writerLocal);
+					} else {
+						processEntities(entities, writer);
+					}
 				}
 				// clear list
 				entities.clear();
@@ -161,18 +202,25 @@ public class SubsetCreator extends Processor<File> {
 		}
 		// create entity
 		if (entities.size() > 0) {
-			processEntities(entities);
+			if (!globalWriter) {
+				processEntities(entities, writerLocal);
+			} else {
+				processEntities(entities, writer);
+			}
 		}
+		quads = null;
+		entities = null;
 		br.close();
-	}
 
-	protected synchronized void writeEntitiesForTypes(Set<String> types, List<Entity> entities) {
-		for (String type : types) {
-			writer.get(type).append(entities);
+		if (!globalWriter) {
+			for (BufferedWriter w : writerLocal.values()) {				
+				w.close();
+			}
+			writerLocal = null;
 		}
 	}
 
-	protected void processEntities(List<Entity> entities) {
+	protected void processEntities(List<Entity> entities, Map<String, BufferedWriter> writer) {
 		Set<String> types = new HashSet<String>();
 		for (Entity e : entities) {
 			if (e.getType() != null) {
@@ -181,13 +229,60 @@ public class SubsetCreator extends Processor<File> {
 				}
 			}
 		}
-		writeEntitiesForTypes(types, entities);
+		for (String type : types) {
+			// writer.get(type).append(entities);
+			for (Entity e : entities) {
+				try {
+					writer.get(type).write(e.toLines());
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		}
 	}
 
 	@Override
 	protected void afterProcess() {
-		for (String s : writer.keySet()) {
-			writer.get(s).close();
+		if (globalWriter) {
+			for (String s : writer.keySet()) {
+				try {
+					writer.get(s).close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		} else {
+			// we need combine the data
+			for (String s : names.values()) {
+				try {
+					BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(
+							new GZIPOutputStream(new FileOutputStream(new File(this.outputDirectory, s + ".gz")))));
+
+					for (File f : outputDirectory.listFiles()) {
+						if (!f.isDirectory()) {
+							if (filePrefix.length() > 0) {
+								if (f.getName().startsWith(s)) {
+									BufferedReader br = InputUtil.getBufferedReader(f);
+									while (br.ready()) {
+										bw.write(br.readLine() + "\n");
+									}
+									br.close();
+									f.delete();
+								}
+							}
+						}
+					}
+					bw.close();
+				} catch (FileNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 
