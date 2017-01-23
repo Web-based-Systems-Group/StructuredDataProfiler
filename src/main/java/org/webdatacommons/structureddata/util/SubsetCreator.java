@@ -32,16 +32,8 @@ import ldif.local.datasources.dump.QuadFileLoader;
 import ldif.runtime.Quad;
 
 /**
- * This class processes a number of input files and extracts different classes
- * of entities and writes them into separated files. The class file which is
- * needed has to follow the format: [CLASS]\t[NAMESCHEME]
  * 
- * Depending on the setup all entities from an URL are written to the file, if
- * the specific class appears on this URL or only the entity of the specific
- * class itself. In the first case, it might happen that quads/entities appear
- * in multiple files (meaning you create duplicates).
- * 
- * @author Robert Meusel (robert@dwslab.de)
+ * @author Anna Primpeli
  * 
  */
 @Parameters(commandDescription = "Creates subsets of the original dataset, based on a given set of classes.")
@@ -78,7 +70,10 @@ public class SubsetCreator extends Processor<File> {
 	private Map<String, BufferedWriter> writer = new HashMap<String, BufferedWriter>();
 
 	private Map<String, String> names = new HashMap<String, String>();
+	private int errorCount = 0;
+	private int parsedLines = 0;
 
+	
 	@Override
 	protected int getNumberOfThreads() {
 		return this.threads;
@@ -154,44 +149,50 @@ public class SubsetCreator extends Processor<File> {
 		NodeTrait currentSubject = null;
 		List<Entity> entities = new ArrayList<Entity>();
 		List<Quad> quads = new ArrayList<Quad>();
-		String line = "";
-		while ((line = br.readLine()) != null) {
-			Quad q = qfl.parseQuadLine(line);
-			if (q.graph().equals(currentURL)) {
-				if (q.subject().equals(currentSubject)) {
-					quads.add(q);
+		while (br.ready()) {
+			try{
+				Quad q = qfl.parseQuadLine(br.readLine());
+				parsedLines ++;
+				if (q.graph().equals(currentURL)) {
+					if (q.subject().equals(currentSubject)) {
+						quads.add(q);
+					} else {
+						// create entity
+						if (quads.size() > 0) {
+							Entity e = etl.loadEntityFromQuads(quads);
+							entities.add(e);
+						}
+						// clear list
+						quads.clear();
+						quads.add(q);
+						currentSubject = q.subject();
+					}
 				} else {
 					// create entity
 					if (quads.size() > 0) {
 						Entity e = etl.loadEntityFromQuads(quads);
 						entities.add(e);
 					}
-					// clear list
 					quads.clear();
 					quads.add(q);
 					currentSubject = q.subject();
-				}
-			} else {
-				// create entity
-				if (quads.size() > 0) {
-					Entity e = etl.loadEntityFromQuads(quads);
-					entities.add(e);
-				}
-				quads.clear();
-				quads.add(q);
-				currentSubject = q.subject();
-
-				// create entity
-				if (entities.size() > 0) {
-					if (!globalWriter) {
-						processEntities(entities, writerLocal);
-					} else {
-						processEntities(entities, writer);
+	
+					// create entity
+					if (entities.size() > 0) {
+						if (!globalWriter) {
+							processEntities(entities, writerLocal);
+						} else {
+							processEntities(entities, writer);
+						}
 					}
+					// clear list
+					entities.clear();
+					currentURL = q.graph();
 				}
-				// clear list
-				entities.clear();
-				currentURL = q.graph();
+			} catch (Exception e) {
+				errorCount++;
+				// TODO make this an option
+				// e.printStackTrace();
 			}
 		}
 		// one final time:
@@ -284,6 +285,8 @@ public class SubsetCreator extends Processor<File> {
 				}
 			}
 		}
+		System.out.println("Error Lines: "+errorCount);
+		System.out.println("Parsed Lines: " + parsedLines);
 	}
 
 	public static void main(String[] args) {

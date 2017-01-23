@@ -3,6 +3,7 @@ package org.webdatacommons.structureddata;
 import org.webdatacommons.structureddata.stats.CCUrlStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCQuadStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCSubsetStatsCalculator;
+import org.webdatacommons.structureddata.stats.WDCSubsetStatsCleaner;
 import org.webdatacommons.structureddata.stats.WDCUrlStatsCalculator;
 import org.webdatacommons.structureddata.util.QuadSorter;
 import org.webdatacommons.structureddata.util.SubsetCreator;
@@ -34,6 +35,11 @@ public class Master {
 
 		WDCSubsetStatsCalculator subsetStats = new WDCSubsetStatsCalculator();
 		jc.addCommand("subsetstats", subsetStats);
+		
+		WDCSubsetStatsCleaner subsetClean = new WDCSubsetStatsCleaner();
+		jc.addCommand("cleansubset", subsetClean);
+		
+
 
 		try {
 			jc.parse(args);
@@ -56,6 +62,10 @@ public class Master {
 			case "subsetstats":
 				subsetStats.process();
 				break;
+			case "cleansubset":
+				subsetClean.process();
+				break;
+
 			}
 		} catch (Exception pex) {
 			if (jc.getParsedCommand() == null) {
@@ -77,9 +87,13 @@ public class Master {
 				case "subset":
 					new JCommander(subset).usage();
 					break;
+				case "cleansubset":
+					new JCommander(subsetClean).usage();
+					break;
 				case "subsetstats":
 					new JCommander(subsetStats).usage();
 					break;
+
 				default:
 					jc.usage();
 				}

@@ -38,6 +38,43 @@ public class EntityFileLoader {
 		}
 	}
 
+	public ShallowEntity loadEntityFromQuadsForConversion (List<Quad> quads) throws Exception {
+		
+		
+			if (quads != null && quads.size() > 0) {
+				// take the first quad to initialize the entity
+				Quad q1 = quads.get(0);
+				// this is needed to check if all nodes belong to the same subject.
+				NodeTrait mainNode = q1.subject();
+				ShallowEntity e = new ShallowEntity(q1.subject().value());
+				e.setGraph(q1.graph());
+				String entityClass= "";
+				for (Quad q : quads) {
+					if (!mainNode.equals(q.subject())) {
+						throw new Exception(
+								"Cannot create Entity for different subjects.");
+					} else {
+						if (q.predicate().equals(TYPEPROP)) {
+							entityClass= q.value().toString().replace(">", "").replace("<", "");
+							e.setType(entityClass);
+						} else {
+							//remove the entity class and keep only the property name
+							if (!entityClass.equals(""))
+								e.addProperty(q.predicate().replace(entityClass+"/", ""), q.value().toString());
+							else
+								e.addProperty(q.predicate(), q.value().toString());
+
+						}
+					}
+				}
+				
+				return e;
+			} else {
+				throw new Exception("Cannot create empty Entity.");
+			}
+	
+	}
+	
 	public Entity loadEntityFromLines(List<String> lines) throws Exception {
 		List<Quad> quads = new ArrayList<Quad>();
 		for (String line : lines) {
