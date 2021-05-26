@@ -75,6 +75,7 @@
 			</plugin>
 		</plugins>
 	</build>
+	 
 	<repositories>
 		<repository>
 			<id>lski</id>
@@ -85,7 +86,7 @@
 			<url>https://breda.informatik.uni-mannheim.de/nexus/content/repositories/thirdparty/</url>
 		</repository>
 	</repositories>
-
+ 
 	<dependencies>
 	<dependency>
     <groupId>commons-lang</groupId>
@@ -93,9 +94,9 @@
     <version>2.6</version>
 </dependency>
 		<dependency>
-			<groupId>de.dwslab</groupId>
-			<artifactId>dwslib</artifactId>
-			<version>2.0.0</version>
+		  <groupId>de.uni-mannheim.informatik.dws.dwslab</groupId>
+		  <artifactId>dwslib</artifactId>
+		  <version>2.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>com.beust</groupId>
@@ -107,12 +108,14 @@
 			<artifactId>opencsv</artifactId>
 			<version>2.4</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>loddesc</groupId>
 			<artifactId>loddesc</artifactId>
 			<version>0.1</version>
 			<classifier>dependencies</classifier>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
