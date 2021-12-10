@@ -3,10 +3,19 @@ package org.webdatacommons.structureddata.stats;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipInputStream;
+import java.text.Normalizer;
 
 import org.webdatacommons.structureddata.util.DomainUtil;
 
@@ -25,9 +34,9 @@ import de.dwslab.dwslib.util.io.OutputUtil;
 import de.wbsg.loddesc.util.VocabularyUtils;
 import ldif.local.datasources.dump.QuadFileLoader;
 import ldif.runtime.Quad;
-
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 /**
- * This class calculates, for a given set of quads the basic deployment
+* This class calculates, for a given set of quads the basic deployment
  * statistics, namely:
  * <ul>
  * <li>Vocabularies by Number of Entities they are used for</li>
@@ -98,7 +107,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 	 *
 	 */
 	private class StatHolder implements Comparable<StatHolder> {
-		int numEntities;
+		long numEntities;
 		int numUrls;
 		HashSet<String> domains = new HashSet<String>();
 
@@ -119,57 +128,85 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 	private long errorCount = 0;
 	private long parsedLines = 0;
 
+	private HashSet<String> notype= new HashSet<String>();
+	
 	@Override
 	protected void process(File object) throws Exception {
+		System.out.println(object.toString());
 		// maintain thread-internal maps to reduce waiting time for other
 		// threads
 		HashMap<String, StatHolder> vocabStatsMap = new HashMap<>();
 		HashMap<String, StatHolder> classStatsMap = new HashMap<>();
 		HashMap<String, StatHolder> propStatsMap = new HashMap<>();
+		
+		HashMap<String,List<Quad>> quadsOfUrl = new HashMap<String,List<Quad>>();
 		int errorCount = 0;
 		int lineCount = 0;
 
 		// quadloader
 		QuadFileLoader qfl = new QuadFileLoader();
-		String currentURL = "";
-		List<Quad> quads = new ArrayList<Quad>();
+		//List<Quad> quads = new ArrayList<Quad>();
 		// read the file
-		BufferedReader br = InputUtil.getBufferedReader(object);
-		while (br.ready()) {
+		BufferedReader br = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(object)),"utf-8"));
+		//BufferedReader br= InputUtil.getBufferedReader(object);
+		String line;
+		while ((line=br.readLine())!=null) {
 			try {
-				Quad q = qfl.parseQuadLine(br.readLine());
-				lineCount++;
-				// read all quads of one url (it is not necessary to pack them
-				// all
-				// into entities)
-				if (q.graph().equals(currentURL)) {
-					quads.add(q);
-				} else {
-					if (quads.size() > 0) {
-						processQuadsOfURL(quads, currentURL, vocabStatsMap, classStatsMap, propStatsMap);
-					}
-					quads.clear();
-					quads.add(q);
-					currentURL = q.graph();
+				//parse once and get the quads of the complete file. 
+				//organize them per url
+				line= cleanLine(line);
+				//line = line.replaceAll("[^\\p{ASCII}]", ""); //language tags?
+				Quad q = qfl.parseQuadLine(line);
+				List<Quad> quads = quadsOfUrl.get(q.graph()); 
+				if (quads == null) {
+					quadsOfUrl.put(q.graph(), new ArrayList<Quad>());
 				}
+				quadsOfUrl.get(q.graph()).add(q);
+				lineCount++;
+				
 			} catch (Exception e) {
+				//System.out.println("Could not parse:"+line);
+				
 				errorCount++;
 				// TODO make this an option
-				// e.printStackTrace();
+				//e.printStackTrace();
 			}
 		}
-		// process once more for the last quads
-		if (quads.size() > 0) {
-			processQuadsOfURL(quads, currentURL, vocabStatsMap, classStatsMap, propStatsMap);
-		}
 		br.close();
-
+		// process the quads of each url
+		for (String url : quadsOfUrl.keySet()) {		    
+			processQuadsOfURL(quadsOfUrl.get(url), url, vocabStatsMap, classStatsMap, propStatsMap);
+		}
+		
 		// integrate the data
 		integrateVocabs(vocabStatsMap);
 		integrateClasses(classStatsMap);
 		integrateProperties(propStatsMap);
 		updateErrorCount(errorCount);
 		updateLineCount(lineCount);
+		System.out.println("Linecount:"+lineCount);
+	}
+
+	private String cleanLine(String line) {
+		//long startTime = System.nanoTime();
+		line= line.replaceAll("[^\\p{ASCII}]", "");
+		//language tags that are correct but not readable by the parser. Covers the majority but might be more.
+		//implementing with regexes might be tricky! Watch out!
+		//if (line.matches(".*\"@.{2}_.{2} <.*")){
+			//line = line.replaceAll("\"@.{2}_.{2} <", "\" <");
+		//}
+
+		line = line.replaceAll("@en_US", "@en").replaceAll("@de_DE","@de").
+				replaceAll("@en_GB","@en").replaceAll("@pt_br","@pt").
+				replaceAll("@fr_CA","@fr").replaceAll("@pt_BR","@pt").
+				replaceAll("@fr_BE","@fr").replaceAll("@da_DK","@da").
+				replaceAll("@tr_TR", "@tr");
+
+		//long endTime = System.nanoTime();
+
+		//long duration = (endTime - startTime);
+		//System.out.println(duration);
+		return line;
 	}
 
 	// process all quads of one URL and create the necessary aggregated stats.
@@ -187,11 +224,11 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 		HashMap<String, HashSet<String>> vocabEntityMap = new HashMap<String, HashSet<String>>();
 		HashMap<String, HashSet<String>> classEntityMap = new HashMap<String, HashSet<String>>();
 		HashMap<String, HashSet<String>> propEntityMap = new HashMap<String, HashSet<String>>();
-
+		HashMap<String, String> entityToClass = new HashMap<String, String>();
+		
+		//parse first time for the types
 		// check all quads for one URL
 		for (Quad q : quads) {
-			// check if its a type quad
-			String vocab;
 			// if (typeProperties.contains(q.predicate())) {
 			if (isType(q.predicate())) {
 				// add class entities
@@ -200,17 +237,45 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 					classEntityMap.put(q.value().value(), new HashSet<String>());
 				}
 				classEntityMap.get(q.value().value()).add(q.subject().value());
+				entityToClass.put(q.subject().value(), q.value().value());
+			} 
+		}
+		//parse second time and add the class info to the properties
+		for (Quad q : quads) {		
 
+			String vocab;
+			if (isType(q.predicate())) {
 				vocab = VocabularyUtils.getVocabularyUrl(q.value().value());
-			} else {
-				// add prop entities
-				HashSet<String> entities = propEntityMap.get(q.predicate());
-				if (entities == null) {
-					propEntityMap.put(q.predicate(), new HashSet<String>());
+			}
+			else {
+				String predicate_= q.predicate();
+				
+				try{
+					//add class info
+					String class_of_subject = entityToClass.get(q.subject().value());
+					if (class_of_subject==null || q.predicate().contains(class_of_subject)){
+						predicate_ = q.predicate();
+						if(class_of_subject==null & !q.predicate().equals("http://www.w3.org/1999/xhtml/microdata#item")){
+							notype.add(q.subject().value());
+						}
+					}
+					else{
+						predicate_=class_of_subject+"/"+q.predicate().substring(q.predicate().lastIndexOf('/') + 1);
+					}	
 				}
-				propEntityMap.get(q.predicate()).add(q.subject().value());
+				catch(Exception e){
+					System.out.println(e.getMessage());
+				}
+				
+				
+				// add prop entities
+				HashSet<String> entities = propEntityMap.get(predicate_);
+				if (entities == null) {
+					propEntityMap.put(predicate_, new HashSet<String>());
+				}
+				propEntityMap.get(predicate_).add(q.subject().value());
 
-				vocab = VocabularyUtils.getVocabularyUrl(q.predicate());
+				vocab = VocabularyUtils.getVocabularyUrl(predicate_);
 			}
 			// add vocab entities
 			HashSet<String> entities = vocabEntityMap.get(vocab);
@@ -220,6 +285,9 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			vocabEntityMap.get(vocab).add(q.subject().value());
 		}
 
+
+		
+		
 		// summarize stats
 		for (String vocab : vocabEntityMap.keySet()) {
 			StatHolder stats = vocabStatsMap.get(vocab);
@@ -386,6 +454,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			System.out.println("Parsed " + parsedLines + " lines.");
 			System.out.println("Could not parse " + errorCount + " lines (quads).");
 			System.out.println("Overall found: " + numTypedEntities + " typed entities in the data.");
+			System.out.println("Subject without a type: "+notype.size());
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -394,6 +463,7 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 	}
 
 	public static void main(String[] args) {
+		
 		WDCQuadStatsCalculator cal = new WDCQuadStatsCalculator();
 		try {
 			new JCommander(cal, args);
@@ -402,6 +472,44 @@ public class WDCQuadStatsCalculator extends Processor<File> {
 			pe.printStackTrace();
 			new JCommander(cal).usage();
 		}
+/*
+		try{
+			QuadFileLoader qfl = new QuadFileLoader();
+
+			String line_= "<http://07722364230.com/#website> <http://schema.org/description> \"网络彩票,⚽⚽【tb0070.com】正规网上售彩平台,互联网彩票提供所有在售的彩票种类供彩民选择投注以及提供所有在售彩种的具体相关走势,网络彩票APP下载,帮助彩民购彩轻松中...\" <http://07722364230.com/2021/07/11/%E3%80%8A%E8%BF%9B%E5%87%BB%E7%9A%84%E5%B7%A8%E4%BA%BA%E5%89%A7%E5%9C%BA%E7%89%88%E3%80%8B%E5%8F%96%E6%B6%88%E4%B8%8A%E6%B5%B7%E7%94%B5%E5%BD%B1%E8%8A%82%E5%85%AC%E6%98%A0%EF%BC%81/>   .\r\n" ;
+			line_ = line_.replaceAll("[^\\x00-\\x7F]", "");
+			//line_  = StringEscapeUtils.escapeJava(line_);
+			//String line_="_:nbf20636a7f9b49b2a0b648d6aad9d5ddxb0 <http://schema.org/query-input> \"required name=search_term_string\" <http://07722364230.com/2021/07/11/%E3%80%8A%E8%BF%9B%E5%87%BB%E7%9A%84%E5%B7%A8%E4%BA%BA%E5%89%A7%E5%9C%BA%E7%89%88%E3%80%8B%E5%8F%96%E6%B6%88%E4%B8%8A%E6%B5%B7%E7%94%B5%E5%BD%B1%E8%8A%82%E5%85%AC%E6%98%A0%EF%BC%81/>   .\r\n" ;
+					
+			Quad q = qfl.parseQuadLine(line_);
+			System.out.println(q.subject().toString());
+			System.out.println(q.predicate().toString());
+			System.out.println(q.graph());
+		}
+		catch (Exception e){
+			System.out.println("ERROR");
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+
+		}
+			*/	
+				
 	}
 
+	public static InputStream getInputStream(File f) throws IOException {
+		InputStream is;
+		if (!f.isFile()) {
+			throw new IOException("Inputfile is not a file but a directory.");
+		}
+		if (f.getName().endsWith(".gz")) {
+			is = new GZIPInputStream(new FileInputStream(f));
+		} else if (f.getName().endsWith(".zip")) {
+			is = new ZipInputStream(new FileInputStream(f));
+		}else if (f.getName().endsWith(".xz")) {
+			is = new XZCompressorInputStream(new FileInputStream(f));
+		} else {
+			is = new FileInputStream(f);
+		}
+		return is;
+	}
 }

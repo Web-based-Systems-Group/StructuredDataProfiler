@@ -96,7 +96,7 @@ public class WDCSubsetStatsCleaner extends Processor<File> {
 	}
 
 	public static void main(String[] args) {
-		WDCQuadStatsCalculator cal = new WDCQuadStatsCalculator();
+		WDCQuadStatsCalculator_OLD cal = new WDCQuadStatsCalculator_OLD();
 		try {
 			new JCommander(cal, args);
 			cal.process();

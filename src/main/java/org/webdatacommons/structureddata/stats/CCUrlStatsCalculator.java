@@ -34,6 +34,8 @@ import de.dwslab.dwslib.util.io.OutputUtil;
  * @author Robert Meusel (robert@dwslab.de)
  *
  */
+
+
 @Parameters(commandDescription = "Calculates the statistics from a list of URLs.")
 public class CCUrlStatsCalculator extends Processor<File> {
 
@@ -92,11 +94,8 @@ public class CCUrlStatsCalculator extends Processor<File> {
 		BufferedReader br = InputUtil.getBufferedReader(object);
 		HashMap<String, Integer> domainUrlCountMap = new HashMap<String, Integer>();
 		long urlCount = 0;
-		while (br.ready()) {
-			String line = br.readLine();
-			if (line == null){
-				continue;
-			}
+		String line ="";
+		while ((line=br.readLine())!=null) {
 			String url = line.trim();
 			urlCount++;
 			String domain = DomainUtil.getPayLevelDomainFromWholeURL(url);
