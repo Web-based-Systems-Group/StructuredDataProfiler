@@ -1,7 +1,7 @@
 package org.webdatacommons.structureddata;
 
 import org.webdatacommons.structureddata.stats.CCUrlStatsCalculator;
-import org.webdatacommons.structureddata.stats.WDCQuadStatsCalculator_OLD;
+import org.webdatacommons.structureddata.stats.WDCQuadStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCSubsetStatsCalculator;
 import org.webdatacommons.structureddata.stats.WDCSubsetStatsCleaner;
 import org.webdatacommons.structureddata.stats.WDCUrlStatsCalculator;
@@ -24,7 +24,7 @@ public class Master {
 		WDCUrlStatsCalculator wdcurls = new WDCUrlStatsCalculator();
 		jc.addCommand("wdcurlstats", wdcurls);
 
-		WDCQuadStatsCalculator_OLD wdcquads = new WDCQuadStatsCalculator_OLD();
+		WDCQuadStatsCalculator wdcquads = new WDCQuadStatsCalculator();
 		jc.addCommand("wdcquadstats", wdcquads);
 
 		QuadSorter sort = new QuadSorter();
